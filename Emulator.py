@@ -5,6 +5,7 @@ import keyboard
 This is an emulator for my Rummy Score Keeper.
 It uses the keyboard library to simulate pressing a 12-key keypad in real time
 '''
+def debounce(): time.sleep(.15)
 def get_name(player_num: int) -> str:
     keys = ['2','3','4','5','6','7','8','9','0']
     nums = ['2','22','222','3','33','333','4','44','444','5','55','555','6','66','666','7','77','777','7777','8','88','888','9','99','999','9999']
@@ -19,11 +20,11 @@ def get_name(player_num: int) -> str:
             for k in keys:      #this is a way of saying or for every key in keys
                 if keyboard.is_pressed(k):
                     cur_str += keyboard.read_key() #the input is added to current string
-                    time.sleep(.15)                #debounce
+                    debounce()                #debounce
                     last_key = time.time()         #time last key was pressed to time out once no more keys are being pressed
             if keyboard.is_pressed('enter') and cur_name: name_done, key_done = True, True  #enter completes the name given at least 1 letter is typed
             if keyboard.is_pressed('backspace') and cur_name: 
-                time.sleep(.15)
+                debounce()
                 cur_name, key_done = cur_name[:-1], True  #deletes the last letter of the name
             if cur_str and time.time() - last_key > .5: key_done = True #time out also completes the key
         print(cur_str)  #print the current string (ex: 333)
@@ -45,27 +46,28 @@ def get_score(name:str) -> int:
         for k in keys:
             if keyboard.is_pressed(k):
                 os.system('cls')
-                time.sleep(.15)
+                debounce()
                 cur_num+=k
                 print(name,end='')
                 print("'s score", cur_num)
         if keyboard.is_pressed('backspace'): 
-            time.sleep(.15)
+            debounce()
             cur_num = cur_num[:-1]
             os.system('cls')
             print(name,end='')
             print("'s score", cur_num)
-        if keyboard.is_pressed('enter') and cur_num: return int(cur_num)
-def start_up() -> dict:
-    #Upon start up
+        if keyboard.is_pressed('enter') and cur_num: 
+            debounce()
+            os.system('cls')
+            return int(cur_num)
+def splash_screen():
     print('Rummy Score Keeper')    #Prints start up screen
     time.sleep(2.5)                      #Waits 2.5 Seconds
-    os.system('cls')                #Clears the LCD
-
+    os.system('cls')    
+def start_up() -> dict:
     #Getting # of players
     num_players = int(input('Enter # of players:'))   #prompts to enter num of players
     os.system('cls')
-
     # Prompts to get players names
     player_names = dict()
     for _ in range(num_players): 
@@ -93,14 +95,17 @@ def ending_sequence():
         print(player,end='')
         print("'s score:", player_names[player])
         time.sleep(1.5)
-game_over = False
 
-while not game_over:
-    player_names = start_up()
+splash_screen()
+while True:
+    game_over = False
     while not game_over:
+        player_names = start_up()
         r = 1
-        game_over = run_round(r)
-    ending_sequence()
+        while not game_over:
+            game_over = run_round(r)
+            r+= 1
+        ending_sequence()
 
 
 
