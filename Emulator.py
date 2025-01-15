@@ -66,6 +66,7 @@ def splash_screen():
     os.system('cls')    
 def start_up() -> dict:
     #Getting # of players
+    os.system('cls')
     num_players = int(input('Enter # of players:'))   #prompts to enter num of players
     os.system('cls')
     # Prompts to get players names
@@ -106,7 +107,3 @@ while True:
             game_over = run_round(r)
             r+= 1
         ending_sequence()
-
-
-
-
