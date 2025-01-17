@@ -11,14 +11,9 @@ Things to fix:
 o1, o2, o3 = digitalio.DigitalInOut(board.D13), digitalio.DigitalInOut(board.D12), digitalio.DigitalInOut(board.D11)
 i1, i2, i3, i4 = digitalio.DigitalInOut(board.D10), digitalio.DigitalInOut(board.D9), digitalio.DigitalInOut(board.D7), digitalio.DigitalInOut(board.D0)
 button_dict = {(o1, i1): '1', (o2, i1): '2', (o3, i1): '3', (o1, i2): '4', (o2, i2): '5', (o3, i2): '6', (o1, i3): '7', (o2, i3): '8', (o3, i3): '9', (o1, i4): 'B', (o2, i4): '0', (o3, i4): 'E'}
-outputs = [o1, o2, o3]
-for o in outputs:
-    o.direction = digitalio.Direction.OUTPUT
-    o.value = False
-inputs = [i1, i2, i3, i4]
-for i in inputs:        
-    i.direction = digitalio.Direction.INPUT
-    i.pull = digitalio.Pull.DOWN
+outputs, inputs = [o1, o2, o3], [i1, i2, i3, i4]
+for o in outputs: o.direction, o.value = digitalio.Direction.OUTPUT, False
+for i in inputs: i.direction, i.pull = digitalio.Direction.INPUT, digitalio.Pull.DOWN
 
 '''
 The debounce function is used after a button press is registered to prevent duplicate button presses from being read
@@ -81,6 +76,7 @@ def key_is_pressed(key:str):
 '''
 This function gets a numeric input that represents the number of players. You can press enter when done or backspace if a number was mistyped.
 '''
+get_player_ct_nums = [str(i) for i in range(10)]
 def get_player_ct(splash) -> int:
     string, string_y = 'Enter player count: ', 10
     send_to_oled(string, string_y, splash)
@@ -92,8 +88,8 @@ def get_player_ct(splash) -> int:
         for key in options:
             if key_is_pressed(key):
                 if key == 'B' and cur_num: cur_num = cur_num[:-1]
-                elif key == 'E': num_done = True
-                else: cur_num += key
+                elif key == 'E' and cur_num and int(cur_num): num_done = True
+                elif key in get_player_ct_nums: cur_num += key
                 splash.pop()
                 send_to_oled(cur_num, 20, splash)
                 debounce()
@@ -119,15 +115,14 @@ def get_name(splash, player_num:int) -> str:
             for key in button_dict.values():
                 if key_is_pressed(key):
                     if key == 'E' and cur_name: name_done, key_done = True, True
-                    if key == 'B' and cur_name: 
-                        cur_name, key_done = cur_name[:-1], True
+                    if key == 'B' and cur_name: cur_name, key_done = cur_name[:-1], True
                     else: 
                         cur_str += key
-                        last_key_press_time = time.time()
+                        last_key_press_time = time.monotonic()
                     debounce()
                     splash.pop()
                     send_to_oled(cur_str, 20, splash)
-                if cur_str and time.time() - last_key_press_time > .7: key_done = True
+            if cur_str and time.monotonic() - last_key_press_time > .5: key_done = True
         if cur_str in get_name_nums:
             if cur_name: cur_name += chr(let_dict[cur_str])
             else: cur_name += chr(let_dict[cur_str] -32)
@@ -180,7 +175,7 @@ def start_up(splash) -> dict:
 '''
 This function displays the round number and then gets each players score after the round is over. It returns a bool that determines if another round should be player or if the ending sequence should run.
 '''
-def run_round(splash, round_num:int) -> bool:
+def run_round(splash, round_num:int, player_names:dict) -> bool:
     send_to_oled('Round ' + str(round_num), 25, splash)
     send_to_oled('in progress...', 35, splash)
     while True:
@@ -192,20 +187,43 @@ def run_round(splash, round_num:int) -> bool:
             debounce()
             return True
     clear(splash)
-    for player in player_names: player_names[player] += get_score(splash, player)
+    for player in player_names.keys(): player_names[player] += get_score(splash, player)
     clear(splash)
     return False
 
 '''
 This function cycles through each player's score at the end.
 '''
-def ending_sequence(splash):
-    send_to_oled('', 30, splash)
-    for player in player_names:
-        splash.pop()
-        send_to_oled(player + "'s score: " + str(player_names[player]), 25, splash)
-        time.sleep(2)
-    clear(splash)
+def ending_sequence(splash, player_names:dict):
+    done = False
+    while not done:
+        send_to_oled('', 30, splash)
+        for player in player_names.keys():
+            splash.pop()
+            send_to_oled(player + "'s score: " + str(player_names[player]), 25, splash)
+            time.sleep(2)
+        clear(splash)
+        send_to_oled('B: Display again', 20, splash)
+        send_to_oled('E: Done', 30, splash)
+        while True:
+            if key_is_pressed('E'): 
+                done = True
+                break
+            if key_is_pressed('B'): break
+        clear(splash)
+
+'''
+Main sequence
+'''
+def main():
+    game_over = False
+    while not game_over:
+        player_names = start_up(splash)
+        r = 1
+        while not game_over:
+            game_over = run_round(splash, r, player_names)
+            r+= 1
+        ending_sequence(splash, player_names)
 
 displayio.release_displays()                                                            #clears anything that would stop the program from running
 
@@ -215,19 +233,9 @@ print("I2C initialized successfully!")
 display_bus = displayio.I2CDisplay(i2c, device_address=0x3c)                            #creates the display bus
 display = adafruit_displayio_ssd1306.SSD1306(display_bus, width=128, height=64)         #creates the display 128x64 pixels with the display bus
 
-splash = displayio.Group()                                                              #
-display.root_group = splash                                                             #
+splash = displayio.Group()                                                              
+display.root_group = splash                                                             
 
-#Starting the program
+# Starting the program
 splash_screen(splash)
-while True:
-    game_over = False
-    while not game_over:
-        player_names = start_up(splash)
-        r = 1
-        while not game_over:
-            game_over = run_round(splash, r)
-            r+= 1
-        while True:
-            ending_sequence(splash)
-            if key_is_pressed('E') : break
+while True: main()
